@@ -1,0 +1,5 @@
+<nav search_view="search">
+    <view name="search" />
+    <view name="dashboards" default="true" />
+    <a href="https://www.ibm.com/support/knowledgecenter/SSKKZM">IBM Knowledge Center</a>
+</nav>

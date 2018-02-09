@@ -1,0 +1,426 @@
+<form script="table_data_bar.js" stylesheet="table_data_bar.css">
+  <label>DB2 accounting</label>
+  <search id="base_timechart">
+    <query>`fuw_search_start_dtr` sourcetype=dtr-003 $response_min$ $response_max$ $ssid$ $connection_name$ qmdactyp=$connection_type$ | timechart count avg(cpu1) avg(cpu2) avg(et2) avg(suspend) sum(qwacawtl) sum(qwacawlh) sum(qwacawti) sum(qwacawlg) sum(qwacawtr) sum(qwacawtw) sum(qwacawte) sum(qwacawtp) sum(qwacawtg) sum(qwacawtj) sum(qwacawtk) sum(qwacawtm) sum(qwacawtn) sum(qwacawto) sum(qwacawtq) sum(qwacalbw)</query>
+    <earliest>$earliest$</earliest>
+    <latest>$latest$</latest>
+  </search>
+  <search id="base_metrics">
+    <query>`fuw_search_start_dtr` sourcetype=dtr-003 $response_min$ $response_max$ $ssid$ $connection_name$ qmdactyp=$connection_type$ | stats count, earliest(_time) as earliest, latest(_time) as latest, avg(response), sum(cpu1), sum(cpu2), values(sm101ssi), values(qwhccn)</query>
+    <earliest>$earliest$</earliest>
+    <latest>$latest$</latest>
+  </search>
+  <search base="base_metrics">
+    <query>eval startTime=strftime(earliest, "%x %H:%M:%S") 
+| eval endTime=if(strftime(earliest, "%x")=strftime(latest, "%x"), strftime(latest, "%H:%M:%S"), strftime(latest, "%x %H:%M:%S")) | eval diff=(latest-earliest) | eval hours=floor(diff/3600) | eval minutes=floor((diff-(hours*3600))/60) | eval seconds=floor(diff-(hours*3600)-(minutes*60)) | eval duration=hours." hour".if(hours&gt;1,"s "," ").minutes." minute".if(minutes&gt;1,"s "," ").seconds." second".if(seconds&gt;1,"s","")</query>
+    <progress>
+     <condition match="'job.resultCount' > 0">
+      <set token="startTime">$result.startTime$</set>
+      <set token="endTime">$result.endTime$</set>
+      <set token="duration">$result.duration$</set>
+      <set token="eventCount">$result.count$</set>
+     </condition>
+     <condition>
+       <unset token="startTime"></unset>
+       <unset token="endTime"></unset>
+       <unset token="duration"></unset>
+       <unset token="eventCount"></unset>
+     </condition>
+    </progress>
+  </search>
+  <fieldset submitButton="false">
+    <input type="time" searchWhenChanged="true">
+      <label>Time range</label>
+      <default>
+        <earliest>0</earliest>
+        <latest></latest>
+      </default>
+    </input>
+    <input type="multiselect" token="ssid" searchWhenChanged="true">
+      <label>DB2 subsystem</label>
+      <default>*</default>
+      <choice value="*">Any</choice>
+      <search base="base_metrics">
+        <query>fields values(sm101ssi) | rename values(sm101ssi) as value | mvexpand value | eval label=value</query>
+      </search>
+      <fieldForLabel>label</fieldForLabel>
+      <fieldForValue>value</fieldForValue>
+      <prefix>(</prefix>
+      <suffix>)</suffix>
+      <valuePrefix>sm101ssi=</valuePrefix>
+      <delimiter> OR </delimiter>
+    </input>
+    <input type="radio" token="connection_type" searchWhenChanged="true">
+      <label>Connection type</label>
+      <choice value="*">Any</choice>
+      <choice value="SASS">CICS</choice>
+      <choice value="MASS">IMS</choice>
+      <default>*</default>
+    </input>
+    <input type="multiselect" token="connection_name" searchWhenChanged="true">
+      <label>Connection name</label>
+      <default>*</default>
+      <choice value="*">Any</choice>
+      <search base="base_metrics">
+        <query>fields values(qwhccn) | rename values(qwhccn) as value | mvexpand value | eval label=value</query>
+      </search>
+      <fieldForLabel>label</fieldForLabel>
+      <fieldForValue>value</fieldForValue>
+      <prefix>(</prefix>
+      <suffix>)</suffix>
+      <valuePrefix>qwhccn=</valuePrefix>
+      <delimiter> OR </delimiter>
+    </input>
+    <input type="text" token="response_min" searchWhenChanged="true">
+      <label>Response time (min)</label>
+      <prefix>response&gt;=</prefix>
+      <default>0</default>
+    </input>
+    <input type="text" token="response_max" searchWhenChanged="true">
+      <label>Response time (max)</label>
+      <prefix>response&lt;=</prefix>
+      <default></default>
+    </input>
+    <html depends="$eventCount$,$duration$,$startTime$,$endTime$">
+      $eventCount$ events spanning $duration$ ($startTime$ to $endTime$)
+    </html>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Top 10 DB2 subsystems</title>
+      <table>
+        <search>
+          <query>`fuw_search_start_dtr` sourcetype=dtr-003 $response_min$ $response_max$ $ssid$ $connection_name$ qmdactyp=$connection_type$ | stats sum(et2) as et2 by sm101ssi | sort -et2 | head 10 | eventstats sum(et2) as total | eval percent=100*et2/total | fields - total | rename et2 as "Total class 2 CPU time", percent as "% of top 10", sm101ssi as "DB2 subsystem"</query>
+          <earliest>$earliest$</earliest>
+          <latest>$latest$</latest>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format field="Total class 2 elapsed time" type="sparkline">
+          <option name="lineColor">#5379af</option>
+          <option name="fillColor">#CCDDFF</option>
+          <option name="lineWidth">1</option>
+          <option name="maxSpotColor">#A2FFA2</option>
+          <option name="spotRadius">3</option>
+          <option name="height">25px</option>
+        </format>
+        <format field="Number of DB2 accounting records" type="sparkline">
+          <option name="lineColor">#5379af</option>
+          <option name="fillColor">#CCDDFF</option>
+          <option name="lineWidth">1</option>
+          <option name="maxSpotColor">#A2FFA2</option>
+          <option name="spotRadius">3</option>
+          <option name="height">25px</option>
+        </format>
+        <drilldown>
+          <set token="ssid">(sm101ssi=$click.value$)</set>
+          <set token="form.ssid">$click.value$</set>
+        </drilldown>
+      </table>
+    </panel>
+    <panel>
+      <title>Top 10 connection names (such as CICS applid or IMS ID)</title>
+      <table>
+        <search>
+          <query>`fuw_search_start_dtr` sourcetype=dtr-003 $response_min$ $response_max$ $ssid$ $connection_name$ qmdactyp=$connection_type$ | stats sum(et2) as et2 by qwhccn | sort -et2 | head 10 |  eventstats sum(et2) as total | eval percent=100*et2/total | fields - total | rename et2 as "Total class 2 CPU time", percent as "% of top 10", qwhccn as "Connection name"</query>
+          <earliest>$earliest$</earliest>
+          <latest>$latest$</latest>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format field="Total class 2 elapsed time" type="sparkline">
+          <option name="lineColor">#5379af</option>
+          <option name="fillColor">#CCDDFF</option>
+          <option name="lineWidth">1</option>
+          <option name="maxSpotColor">#A2FFA2</option>
+          <option name="spotRadius">3</option>
+          <option name="height">25px</option>
+        </format>
+        <format field="Number of DB2 accounting records" type="sparkline">
+          <option name="lineColor">#5379af</option>
+          <option name="fillColor">#CCDDFF</option>
+          <option name="lineWidth">1</option>
+          <option name="maxSpotColor">#A2FFA2</option>
+          <option name="spotRadius">3</option>
+          <option name="height">25px</option>
+        </format>
+        <drilldown>
+          <set token="connection_name">(qwhccn=$click.value$)</set>
+          <set token="form.connection_name">$click.value$</set>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>DB2 accounting metrics</title>
+      <single>
+        <search base="base_metrics">
+          <query>fields count</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0</option>
+        <option name="rangeColors">["0x65a637","0x6db7c6","0xf7bc38","0xf58f39","0xd93f3c"]</option>
+        <option name="rangeValues">[0,30,70,100]</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="underLabel">Number of DB2 accounting records</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">0</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+      <single>
+        <search base="base_metrics">
+          <query>fields avg(response)</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.000</option>
+        <option name="rangeColors">["0x65a637","0x6db7c6","0xf7bc38","0xf58f39","0xd93f3c"]</option>
+        <option name="rangeValues">[0,30,70,100]</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="underLabel">Average DB2 response (elapsed) time (seconds)</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">0</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+      <single>
+        <search base="base_metrics">
+          <query>fields sum(cpu1)</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.000</option>
+        <option name="rangeColors">["0x65a637","0x6db7c6","0xf7bc38","0xf58f39","0xd93f3c"]</option>
+        <option name="rangeValues">[0,30,70,100]</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="underLabel">Total application (class 1) CPU time (seconds)</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">0</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+      <single>
+        <search base="base_metrics">
+          <query>fields sum(cpu2)</query>
+        </search>
+        <option name="colorBy">value</option>
+        <option name="colorMode">none</option>
+        <option name="drilldown">none</option>
+        <option name="numberPrecision">0.000</option>
+        <option name="rangeColors">["0x65a637","0x6db7c6","0xf7bc38","0xf58f39","0xd93f3c"]</option>
+        <option name="rangeValues">[0,30,70,100]</option>
+        <option name="showSparkline">1</option>
+        <option name="showTrendIndicator">1</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+        <option name="trendColorInterpretation">standard</option>
+        <option name="trendDisplayMode">absolute</option>
+        <option name="underLabel">Total in-DB2 (class 2) CPU time (seconds)</option>
+        <option name="unitPosition">after</option>
+        <option name="useColors">0</option>
+        <option name="useThousandSeparators">1</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>DB2 accounting record rate</title>
+      <chart>
+        <search base="base_timechart">
+          <query>fields _time count | rename count as "Number of records"</query>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.text">Count</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">gaps</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">none</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="height">270</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <chart>
+        <title>Class 1 (application) and 2 (in-DB2) CPU time</title>
+        <search base="base_timechart">
+          <query>fields _time avg(cpu1) avg(cpu2) | rename avg(cpu1) as "Average class 1 CPU time" avg(cpu2) as "Average class 2 CPU time"</query>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.text">Seconds</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">zero</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">all</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.placement">top</option>
+        <option name="height">268</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <chart>
+        <title>Class 2 elapsed time and class 3 suspend time</title>
+        <search base="base_timechart">
+          <query>fields _time avg(et2) avg(suspend) | rename avg(et2) as "Average class 2 elapsed time" avg(suspend) as "Average class 3 suspend time"</query>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.text">Seconds</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">zero</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">all</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.placement">top</option>
+        <option name="height">323</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <chart>
+        <title>Accumulated wait times</title>
+        <search base="base_timechart">
+          <query>fields _time sum(qwacawtl) sum(qwacawlh) sum(qwacawti) sum(qwacawlg) sum(qwacawtr) sum(qwacawtw) sum(qwacawte) sum(qwacawtp) sum(qwacawtg) sum(qwacawtj) sum(qwacawtk) sum(qwacawtm) sum(qwacawtn) sum(qwacawto) sum(qwacawtq) sum(qwacalbw) | rename sum(qwacawtl) as "Latch contention or local contention for locks" sum(qwacawlh) as "Latch contention" sum(qwacawti) as "Database I/O under this thread" sum(qwacawlg) as "Log write I/O" sum(qwacawtr) as "Read I/O for a different thread" sum(qwacawtw) as "Write I/O for a different thread" sum(qwacawte) as "Synchronous execution unit switch for DB2 commit, abort, or deallocation" sum(qwacawtp) as "Page latch contention" sum(qwacawtg) as "Sending messages to DB2 data sharing group" sum(qwacawtj) as "Global contention for parent L-locks" sum(qwacawtk) as "Global contention for child L-locks" sum(qwacawtm) as "Global contention for other L-locks" sum(qwacawtn) as "Global contention for pageset/partition P-locks" sum(qwacawto) as "Global contention for page P-locks" sum(qwacawtq) as "Global contention for other P-locks" sum(qwacalbw) as "TCP/IP LOB materialization"</query>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.text">Seconds</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">zero</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">all</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.placement">top</option>
+        <option name="height">414</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>DB2 accounting</title>
+      <event>
+        <search>
+          <query>`fuw_search_start_dtr` sourcetype=dtr-003 $response_min$ $response_max$ $ssid$ $connection_name$ qmdactyp=$connection_type$ | fields qmdactyp, sm101ssi, qwhccn, response, suspend, cpu1, cpu2, et1, et2, luwid, acctoken, imstoken | replace "SASS" with "CICS (SASS)", "MASS" with "IMS (MASS)" in qmdactyp | rename qmdactyp as "Connection type" sm101ssi as "DB2 subsystem ID" qwhccn as "Connection name"</query>
+          <earliest>$earliest$</earliest>
+          <latest>$latest$</latest>
+        </search>
+        <fields>["Connection type","DB2 subsystem ID","Connection name","response","suspend","cpu1","cpu2","et1","et2","luwid","acctoken","imstoken"]</fields>
+        <option name="count">10</option>
+        <option name="list.drilldown">full</option>
+        <option name="list.wrap">1</option>
+        <option name="maxLines">5</option>
+        <option name="raw.drilldown">full</option>
+        <option name="rowNumbers">0</option>
+        <option name="table.drilldown">all</option>
+        <option name="table.wrap">1</option>
+        <option name="type">table</option>
+      </event>
+    </panel>
+  </row>
+</form>

@@ -1,0 +1,386 @@
+<form script="table_data_bar.js" stylesheet="table_data_bar.css">
+  <label>CICS-DB2 transaction performance</label>
+  <search id="base_timechart_cics">
+    <query>`fuw_search_start_cmf` sourcetype=cmf-6e13 db2reqct&gt;1 $applid$ $otran$ | timechart avg(response) avg(susptime) avg(qrcput) avg(l8cput) count</query>
+    <earliest>$earliest$</earliest>
+    <latest>$latest$</latest>
+  </search>
+  <search id="base_timechart_db2">
+    <query>`fuw_search_start_dtr` sourcetype=dtr-003 qmdactyp=SASS | rename qwhcctr as otran qwhccn as applid | search $applid$ $otran$ | timechart avg(cpu1) avg(cpu2) avg(et2) avg(suspend) sum(qwacawtl) sum(qwacawlh) sum(qwacawti) sum(qwacawlg) sum(qwacawtr) sum(qwacawtw) sum(qwacawte) sum(qwacawtp) sum(qwacawtg) sum(qwacawtj) sum(qwacawtk) sum(qwacawtm) sum(qwacawtn) sum(qwacawto) sum(qwacawtq) sum(qwacalbw)</query>
+    <earliest>$earliest$</earliest>
+    <latest>$latest$</latest>
+  </search>
+  <search id="base_metrics_cics">
+    <query>`fuw_search_start_cmf` sourcetype=cmf-6e13 db2reqct&gt;1 $applid$ $otran$ | stats count, earliest(_time) as earliest, latest(_time) as latest, sum(usrcput), avg(response), values(applid), values(otran)</query>
+    <earliest>$earliest$</earliest>
+    <latest>$latest$</latest>
+  </search>
+  <search base="base_metrics_cics">
+    <query>eval startTime=strftime(earliest, "%x %H:%M:%S") 
+| eval endTime=if(strftime(earliest, "%x")=strftime(latest, "%x"), strftime(latest, "%H:%M:%S"), strftime(latest, "%x %H:%M:%S")) | eval diff=(latest-earliest) | eval hours=floor(diff/3600) | eval minutes=floor((diff-(hours*3600))/60) | eval seconds=floor(diff-(hours*3600)-(minutes*60)) | eval duration=hours." hour".if(hours&gt;1,"s "," ").minutes." minute".if(minutes&gt;1,"s "," ").seconds." second".if(seconds&gt;1,"s","")</query>
+    <progress>
+     <condition match="'job.resultCount' > 0">
+      <set token="startTime">$result.startTime$</set>
+      <set token="endTime">$result.endTime$</set>
+      <set token="duration">$result.duration$</set>
+      <set token="eventCount">$result.count$</set>
+     </condition>
+     <condition>
+       <unset token="startTime"></unset>
+       <unset token="endTime"></unset>
+       <unset token="duration"></unset>
+       <unset token="eventCount"></unset>
+     </condition>
+    </progress>
+  </search>
+  <fieldset submitButton="false">
+    <input type="time" searchWhenChanged="true">
+      <label>Time range</label>
+      <default>
+        <earliest>0</earliest>
+        <latest></latest>
+      </default>
+    </input>
+    <input type="multiselect" token="applid" searchWhenChanged="true">
+      <label>Applid</label>
+      <default>*</default>
+      <choice value="*">Any</choice>
+      <search base="base_metrics_cics">
+        <query>fields values(applid) | rename values_applid as value | mvexpand value | eval label=value</query>
+      </search>
+      <fieldForLabel>label</fieldForLabel>
+      <fieldForValue>value</fieldForValue>
+      <prefix>(</prefix>
+      <suffix>)</suffix>
+      <valuePrefix>applid=</valuePrefix>
+      <delimiter> OR </delimiter>
+    </input>
+    <input type="multiselect" token="otran" searchWhenChanged="true">
+      <label>CICS originating transaction code</label>
+      <default>*</default>
+      <choice value="*">Any</choice>
+      <search base="base_metrics_cics">
+        <query>fields values(otran) | rename values(otran) as value | mvexpand value | eval label=value</query>
+      </search>
+      <fieldForLabel>label</fieldForLabel>
+      <fieldForValue>value</fieldForValue>
+      <prefix>(</prefix>
+      <suffix>)</suffix>
+      <valuePrefix>otran=</valuePrefix>
+      <delimiter> OR </delimiter>
+    </input>
+    <html depends="$eventCount$,$duration$,$startTime$,$endTime$">
+      $eventCount$ events spanning $duration$ ($startTime$ to $endTime$)
+    </html>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Top 10 applids</title>
+      <table>
+        <search>
+          <query>`fuw_search_start_cmf` sourcetype=cmf-6e13 db2reqct&gt;1 $applid$ $otran$ | stats sum(response) as response by applid | sort -response | head 10 | eventstats sum(response) as total | eval percent=100*response/total | fields - total | rename applid as "Applid", response as "Total response time", percent as "% of top 10"</query>
+          <earliest>$earliest$</earliest>
+          <latest>$latest$</latest>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format field="Total response time" type="sparkline">
+          <option name="lineColor">#5379af</option>
+          <option name="fillColor">#CCDDFF</option>
+          <option name="lineWidth">1</option>
+          <option name="maxSpotColor">#A2FFA2</option>
+          <option name="spotRadius">3</option>
+          <option name="height">25px</option>
+        </format>
+        <format field="Number of transactions" type="sparkline">
+          <option name="lineColor">#5379af</option>
+          <option name="fillColor">#CCDDFF</option>
+          <option name="lineWidth">1</option>
+          <option name="maxSpotColor">#A2FFA2</option>
+          <option name="spotRadius">3</option>
+          <option name="height">25px</option>
+        </format>
+        <drilldown>
+          <set token="applid">(applid=$click.value$)</set>
+          <set token="form.applid">$click.value$</set>
+        </drilldown>
+      </table>
+    </panel>
+    <panel>
+      <title>Top 10 originating tran codes</title>
+      <table>
+        <search>
+          <query>`fuw_search_start_cmf` sourcetype=cmf-6e13 db2reqct&gt;1 $applid$ $otran$ | stats sum(response) as response by otran | sort -response | head 10 | eventstats sum(response) as total | eval percent=100*response/total | fields - total | rename otran as "CICS originating transaction code", response as "Total response time", percent as "% of top 10"</query>
+          <earliest>$earliest$</earliest>
+          <latest>$latest$</latest>
+        </search>
+        <option name="count">20</option>
+        <option name="dataOverlayMode">none</option>
+        <option name="drilldown">cell</option>
+        <option name="percentagesRow">false</option>
+        <option name="rowNumbers">false</option>
+        <option name="totalsRow">false</option>
+        <option name="wrap">true</option>
+        <format field="Total response time" type="sparkline">
+          <option name="lineColor">#5379af</option>
+          <option name="fillColor">#CCDDFF</option>
+          <option name="lineWidth">1</option>
+          <option name="maxSpotColor">#A2FFA2</option>
+          <option name="spotRadius">3</option>
+          <option name="height">25px</option>
+        </format>
+        <format field="Number of transactions" type="sparkline">
+          <option name="lineColor">#5379af</option>
+          <option name="fillColor">#CCDDFF</option>
+          <option name="lineWidth">1</option>
+          <option name="maxSpotColor">#A2FFA2</option>
+          <option name="spotRadius">3</option>
+          <option name="height">25px</option>
+        </format>
+        <drilldown>
+          <set token="otran">(otran=$click.value$)</set>
+          <set token="form.tran">$click.value$</set>
+        </drilldown>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>CICS-DB2 transaction rate</title>
+      <chart>
+        <search base="base_timechart_cics">
+          <query>fields _time count | rename count as "Number of transactions"</query>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.text">CICS transaction start time</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.text">Number of transactions</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">gaps</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">all</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.placement">none</option>
+        <option name="height">270</option>
+        <option name="trellis.enabled">0</option>
+        <option name="trellis.scales.shared">1</option>
+        <option name="trellis.size">medium</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>From CICS</title>
+      <html>
+        <p>The charts in the column below show data from CICS monitoring facility (CMF) performance (SMF 110) records that performed DB2 requests (<code>db2reqct</code> field value greater than zero).</p>
+      </html>
+      <chart>
+        <title>Response and suspend time</title>
+        <search base="base_timechart_cics">
+          <query>fields _time avg(response) avg(susptime) | rename avg(response) as "Average response time" avg(susptime) as "Average suspend time"</query>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.text">CICS transaction start time</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.text">Seconds</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">zero</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">all</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.placement">top</option>
+      </chart>
+      <chart>
+        <title>QR and L8 CPU time</title>
+        <search base="base_timechart_cics">
+          <query>fields _time avg(qrcput) avg(l8cput) | rename avg(qrcput) as "Average QR TCB CPU time" avg(l8cput) as "Average L8 TCB CPU time"</query>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.text">CICS transaction start time</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.text">Seconds</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">zero</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">all</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.placement">top</option>
+        <option name="height">320</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>From DB2</title>
+      <html>
+        <p>The charts in the column below show data from DB2 accounting trace (IFCID 003) records that were triggered by CICS (<code>qmdactyp</code> field value "SASS").</p>
+      </html>
+      <chart>
+        <title>Class 1 (application) and 2 (in-DB2) CPU time</title>
+        <search base="base_timechart_db2">
+          <query>fields _time avg(cpu1) avg(cpu2) | rename avg(cpu1) as "Average class 1 CPU time" avg(cpu2) as "Average class 2 CPU time"</query>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.text">Seconds</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">zero</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">all</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.placement">top</option>
+        <option name="height">268</option>
+      </chart>
+      <chart>
+        <title>Class 2 elapsed time and class 3 suspend time</title>
+        <search base="base_timechart_db2">
+          <query>fields _time avg(et2) avg(suspend) | rename avg(et2) as "Average class 2 elapsed time" avg(suspend) as "Average class 3 suspend time"</query>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.text">Seconds</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">line</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">zero</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">default</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">all</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.placement">top</option>
+        <option name="height">323</option>
+      </chart>
+      <chart>
+        <title>Accumulated wait times</title>
+        <search base="base_timechart_db2">
+          <query>fields _time sum(qwacawtl) sum(qwacawlh) sum(qwacawti) sum(qwacawlg) sum(qwacawtr) sum(qwacawtw) sum(qwacawte) sum(qwacawtp) sum(qwacawtg) sum(qwacawtj) sum(qwacawtk) sum(qwacawtm) sum(qwacawtn) sum(qwacawto) sum(qwacawtq) sum(qwacalbw) | rename sum(qwacawtl) as "Latch contention or local contention for locks" sum(qwacawlh) as "Latch contention" sum(qwacawti) as "Database I/O under this thread" sum(qwacawlg) as "Log write I/O" sum(qwacawtr) as "Read I/O for a different thread" sum(qwacawtw) as "Write I/O for a different thread" sum(qwacawte) as "Synchronous execution unit switch for DB2 commit, abort, or deallocation" sum(qwacawtp) as "Page latch contention" sum(qwacawtg) as "Sending messages to DB2 data sharing group" sum(qwacawtj) as "Global contention for parent L-locks" sum(qwacawtk) as "Global contention for child L-locks" sum(qwacawtm) as "Global contention for other L-locks" sum(qwacawtn) as "Global contention for pageset/partition P-locks" sum(qwacawto) as "Global contention for page P-locks" sum(qwacawtq) as "Global contention for other P-locks" sum(qwacalbw) as "TCP/IP LOB materialization"</query>
+        </search>
+        <option name="charting.axisLabelsX.majorLabelStyle.overflowMode">ellipsisNone</option>
+        <option name="charting.axisLabelsX.majorLabelStyle.rotation">0</option>
+        <option name="charting.axisTitleX.text">Time</option>
+        <option name="charting.axisTitleX.visibility">visible</option>
+        <option name="charting.axisTitleY.text">Seconds</option>
+        <option name="charting.axisTitleY.visibility">visible</option>
+        <option name="charting.axisTitleY2.visibility">visible</option>
+        <option name="charting.axisX.scale">linear</option>
+        <option name="charting.axisY.scale">linear</option>
+        <option name="charting.axisY2.enabled">0</option>
+        <option name="charting.axisY2.scale">inherit</option>
+        <option name="charting.chart">column</option>
+        <option name="charting.chart.bubbleMaximumSize">50</option>
+        <option name="charting.chart.bubbleMinimumSize">10</option>
+        <option name="charting.chart.bubbleSizeBy">area</option>
+        <option name="charting.chart.nullValueMode">zero</option>
+        <option name="charting.chart.showDataLabels">none</option>
+        <option name="charting.chart.sliceCollapsingThreshold">0.01</option>
+        <option name="charting.chart.stackMode">stacked</option>
+        <option name="charting.chart.style">shiny</option>
+        <option name="charting.drilldown">all</option>
+        <option name="charting.layout.splitSeries">0</option>
+        <option name="charting.layout.splitSeries.allowIndependentYRanges">0</option>
+        <option name="charting.legend.labelStyle.overflowMode">ellipsisMiddle</option>
+        <option name="charting.legend.placement">top</option>
+        <option name="height">414</option>
+      </chart>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>CICS-DB2 transactions</title>
+      <event>
+        <search>
+          <query>`fuw_search_start_cmf` sourcetype=cmf-6e13 db2reqct&gt;1 $applid$ $otran$ | fields applid, tran, otran, pgmname, userid, trannum, response, usrdispt, usrcput, susptime, dispwtt, fciowtt, db2reqct, acctoken</query>
+          <earliest>$earliest$</earliest>
+          <latest>$latest$</latest>
+        </search>
+        <fields>["applid","tran","otran","term","pgmname","userid","trannum","response","usrdispt","usrcput","susptime","dispwtt","fciowtt","db2reqct","acctoken"]</fields>
+        <option name="count">10</option>
+        <option name="list.drilldown">full</option>
+        <option name="list.wrap">1</option>
+        <option name="maxLines">5</option>
+        <option name="raw.drilldown">full</option>
+        <option name="rowNumbers">0</option>
+        <option name="table.drilldown">all</option>
+        <option name="table.wrap">1</option>
+        <option name="type">table</option>
+      </event>
+    </panel>
+  </row>
+</form>

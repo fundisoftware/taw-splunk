@@ -1,0 +1,53 @@
+[app/ui]
+version = 6.3.1
+modtime = 1458805245.732825800
+
+[app/launcher]
+version = 6.3.1
+modtime = 1458805245.740826200
+
+[app/package/check_for_updates]
+version = 6.3.1
+modtime = 1458805245.746826600
+
+[views/cics_application_profiling]
+access = read : [ * ], write : [ admin, power ]
+export = none
+owner = admin
+version = 6.6.3
+modtime = 1505374611.958124000
+
+[views/cics_db2]
+access = read : [ * ], write : [ admin, power ]
+export = none
+owner = admin
+version = 6.6.3
+modtime = 1505375046.217935000
+
+[views/db2_accounting]
+access = read : [ * ], write : [ admin, power ]
+export = none
+owner = admin
+version = 6.6.3
+modtime = 1505375208.988767000
+
+[views/ims_cpu_and_elapsed_atf]
+access = read : [ * ], write : [ admin, power ]
+export = none
+owner = admin
+version = 6.6.3
+modtime = 1505375425.707932000
+
+[views/ims_transaction_performance]
+access = read : [ * ], write : [ admin, power ]
+export = none
+owner = admin
+version = 6.6.3
+modtime = 1505375680.127563000
+
+[views/ims_db2]
+access = read : [ * ], write : [ admin, power ]
+export = none
+owner = admin
+version = 6.6.3
+modtime = 1505375928.725252000
