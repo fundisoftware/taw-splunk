@@ -10,17 +10,13 @@ For an introduction to the sample dashboards, watch the YouTube video "[IBM Tran
 
 If you want to try the app without installing Splunk or Workbench, you can download a Docker image containing Splunk, the app, and sample data (all preconfigured, ready to run) from [Docker Hub](https://hub.docker.com/r/fundisoftware/taw-splunk/).
 
-## Who we are
-
-[Fundi Software](http://www.fundi.com/) develops Workbench.
-
 ## Requirements
 
 To use the app, you will need:
 
 * Splunk 6.6.3, or later
 
-To forward logs from z/OS to Splunk, you will need:
+To forward logs from z/OS to Splunk:
 
 * IBM Transaction Analysis Workbench for z/OS, V1.3, at the PTF level for [APAR PI82316](http://www.ibm.com/support/docview.wss?&uid=swg1PI82316)
 
@@ -98,3 +94,7 @@ When you deploy the app (very likely, with your own customizations) at your own 
 ### IMS-Db2 transaction performance dashboard
 
 ![IMS-Db2 transaction performance dashboard](screenshots/ims-db2-transaction-performance.png)
+
+## Who we are
+
+[Fundi Software](http://www.fundi.com/) develops Workbench.
